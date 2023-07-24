@@ -21,6 +21,8 @@
 #define KEY_RESUMABLE @"resumable"
 #define KEY_SHOW_NOTIFICATION @"show_notification"
 #define KEY_OPEN_FILE_FROM_NOTIFICATION @"open_file_from_notification"
+#define KEY_HTTP_METHOD @"http_method"
+#define KEY_HTTP_BODY @"http_body"
 #define KEY_QUERY @"query"
 #define KEY_TIME_CREATED @"time_created"
 
@@ -28,6 +30,7 @@
 
 #define ERROR_NOT_INITIALIZED [FlutterError errorWithCode:@"not_initialized" message:@"initialize() must called first" details:nil]
 #define ERROR_INVALID_TASK_ID [FlutterError errorWithCode:@"invalid_task_id" message:@"not found task corresponding to given task id" details:nil]
+#define ERROR_RETRY_NOT_SUPPORTED [FlutterError errorWithCode:@"retry_not_supported" message:@"retry is the not supported due to the requirement to store task information within the sql database. HttpMethod and HttpBody are not stored and thus are not available at the point retry is called." details:nil]
 
 @interface FlutterDownloaderPlugin()<NSURLSessionTaskDelegate, NSURLSessionDownloadDelegate, UIDocumentInteractionControllerDelegate>
 {
@@ -159,7 +162,7 @@ static NSMutableDictionary<NSString*, NSMutableDictionary*> *_runningTaskById = 
     return _session;
 }
 
-- (NSURLSessionDownloadTask*)downloadTaskWithURL: (NSURL*) url fileName: (NSString*) fileName andSavedDir: (NSString*) savedDir andHeaders: (NSString*) headers
+- (NSURLSessionDownloadTask*)downloadTaskWithURL: (NSURL*) url fileName: (NSString*) fileName andSavedDir: (NSString*) savedDir andHeaders: (NSString*) headers andHttpMethod:(NSString*)httpMethod andHttpBody:(NSString*)httpBody
 {
     NSMutableURLRequest *request = [[NSMutableURLRequest alloc] initWithURL:url];
     if (headers != nil && [headers length] > 0) {
@@ -175,6 +178,8 @@ static NSMutableDictionary<NSString*, NSMutableDictionary*> *_runningTaskById = 
             [request setValue:value forHTTPHeaderField:key];
         }
     }
+    request.HTTPMethod = httpMethod != nil ? httpMethod : @"GET";
+    request.HTTPBody = [httpBody dataUsingEncoding:NSUTF8StringEncoding];
     NSURLSessionDownloadTask *task = [[self currentSession] downloadTaskWithRequest:request];
     // store task id in taskDescription
     task.taskDescription = [self createTaskId];
@@ -633,8 +638,12 @@ static NSMutableDictionary<NSString*, NSMutableDictionary*> *_runningTaskById = 
     NSString *headers = call.arguments[KEY_HEADERS];
     NSNumber *showNotification = call.arguments[KEY_SHOW_NOTIFICATION];
     NSNumber *openFileFromNotification = call.arguments[KEY_OPEN_FILE_FROM_NOTIFICATION];
+    NSObject *httpMethodArg = call.arguments[KEY_HTTP_METHOD];
+    NSObject *httpBodyArg = call.arguments[KEY_HTTP_BODY];
+    NSString *httpMethod = [httpMethodArg isKindOfClass:[NSString class]] ? (NSString*)httpMethodArg : nil;
+    NSString *httpBody = [httpBodyArg isKindOfClass:[NSString class]] ? (NSString*)httpBodyArg : nil;
 
-    NSURLSessionDownloadTask *task = [self downloadTaskWithURL:[NSURL URLWithString:urlString] fileName:fileName andSavedDir:savedDir andHeaders:headers];
+    NSURLSessionDownloadTask *task = [self downloadTaskWithURL:[NSURL URLWithString:urlString] fileName:fileName andSavedDir:savedDir andHeaders:headers andHttpMethod:httpMethod andHttpBody:httpBody]
 
     NSString *taskId = [self identifierForTask:task];
 
@@ -745,41 +754,9 @@ static NSMutableDictionary<NSString*, NSMutableDictionary*> *_runningTaskById = 
 }
 
 - (void)retryMethodCall:(FlutterMethodCall*)call result:(FlutterResult)result {
-    NSString *taskId = call.arguments[KEY_TASK_ID];
-    NSDictionary* taskDict = [self loadTaskWithId:taskId];
-    if (taskDict != nil) {
-        NSNumber* status = taskDict[KEY_STATUS];
-        if ([status intValue] == STATUS_FAILED || [status intValue] == STATUS_CANCELED) {
-            NSString *urlString = taskDict[KEY_URL];
-            NSString *savedDir = taskDict[KEY_SAVED_DIR];
-            NSString *fileName = taskDict[KEY_FILE_NAME];
-            NSString *headers = taskDict[KEY_HEADERS];
-
-            NSURLSessionDownloadTask *newTask = [self downloadTaskWithURL:[NSURL URLWithString:urlString] fileName:fileName andSavedDir:savedDir andHeaders:headers];
-            NSString *newTaskId = [self identifierForTask:newTask];
-
-            // update memory-cache
-            NSMutableDictionary *newTaskDict = [NSMutableDictionary dictionaryWithDictionary:taskDict];
-            newTaskDict[KEY_STATUS] = @(STATUS_ENQUEUED);
-            newTaskDict[KEY_PROGRESS] = @(0);
-            newTaskDict[KEY_RESUMABLE] = @(NO);
-            [_runningTaskById setObject:newTaskDict forKey:newTaskId];
-            [_runningTaskById removeObjectForKey:taskId];
-
-            __typeof__(self) __weak weakSelf = self;
-            [self executeInDatabaseQueueForTask:^{
-                [weakSelf updateTask:taskId newTaskId:newTaskId status:STATUS_ENQUEUED resumable:NO];
-            }];
-            result(newTaskId);
-            [self sendUpdateProgressForTaskId:newTaskId inStatus:@(STATUS_ENQUEUED) andProgress:@(0)];
-        } else {
-            result([FlutterError errorWithCode:@"invalid_status"
-                                       message:@"only failed and canceled task can be retried"
-                                       details:nil]);
-        }
-    } else {
-        result(ERROR_INVALID_TASK_ID);
-    }
+    NSLog(@"The retry method is not currently supported in this fork of the repository");
+    result(ERROR_RETRY_NOT_SUPPORTED);
+    return;
 }
 
 - (void)openMethodCall:(FlutterMethodCall*)call result:(FlutterResult)result {

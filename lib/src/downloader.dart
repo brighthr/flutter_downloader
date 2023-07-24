@@ -100,6 +100,8 @@ class FlutterDownloader {
     bool saveInPublicStorage = false,
     bool allowCellular = true,
     int timeout = 15000,
+    String? httpMethod,
+    String? httpBody
   }) async {
     assert(_initialized, 'plugin flutter_downloader is not initialized');
     assert(Directory(savedDir).existsSync(), 'savedDir does not exist');
@@ -116,6 +118,8 @@ class FlutterDownloader {
         'save_in_public_storage': saveInPublicStorage,
         'timeout': timeout,
         'allow_cellular': allowCellular,
+        'http_method': httpMethod,
+        'http_body': httpBody
       });
 
       if (taskId == null) {
