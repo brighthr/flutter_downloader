@@ -643,7 +643,7 @@ static NSMutableDictionary<NSString*, NSMutableDictionary*> *_runningTaskById = 
     NSString *httpMethod = [httpMethodArg isKindOfClass:[NSString class]] ? (NSString*)httpMethodArg : nil;
     NSString *httpBody = [httpBodyArg isKindOfClass:[NSString class]] ? (NSString*)httpBodyArg : nil;
 
-    NSURLSessionDownloadTask *task = [self downloadTaskWithURL:[NSURL URLWithString:urlString] fileName:fileName andSavedDir:savedDir andHeaders:headers andHttpMethod:httpMethod andHttpBody:httpBody]
+    NSURLSessionDownloadTask *task = [self downloadTaskWithURL:[NSURL URLWithString:urlString] fileName:fileName andSavedDir:savedDir andHeaders:headers andHttpMethod:httpMethod andHttpBody:httpBody];
 
     NSString *taskId = [self identifierForTask:task];
 
